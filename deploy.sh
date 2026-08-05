@@ -16,6 +16,14 @@ usage() {
 }
 
 case "$TARGET" in
+  frontend|backend) ;;
+  *) usage ;;
+esac
+
+echo "=== Pulling latest ==="
+git pull
+
+case "$TARGET" in
   frontend)
     echo "=== Building frontend ==="
     cd "$ROOT/frontend"
