@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+# Non-interactive SSH commands (e.g. from CI) don't source ~/.bashrc, so nvm's
+# node/npm never make it onto PATH there even though they do in a normal login shell.
+export PATH="/home/nixy/.nvm/versions/node/v24.19.0/bin:$PATH"
+
 TARGET="${1:-}"
 MODE="${2:-}"
 
