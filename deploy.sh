@@ -29,11 +29,6 @@ case "$TARGET" in
     echo "Done. Frontend deployed."
     ;;
   backend)
-    echo "=== Building backend (local type-check) ==="
-    cd "$ROOT/backend"
-    npm run build
-    cd "$ROOT"
-
     echo "=== Rebuilding and restarting backend container ==="
     docker compose up -d --build backend
 
