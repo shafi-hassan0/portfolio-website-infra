@@ -52,6 +52,10 @@ services:
       - web
     networks:
       - portfolio-net
+    extra_hosts:
+      # Lets this container reach sshd on the Docker host itself, since the SSH
+      # public hostname route points at host.docker.internal:22 (see README).
+      - "host.docker.internal:host-gateway"
 
 networks:
   portfolio-net:
