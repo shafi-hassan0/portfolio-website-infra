@@ -37,8 +37,9 @@ jobs:
     steps:
       - name: Dispatch portfolio-api-tests
         run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           curl -sS -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.API_TESTS_DISPATCH_TOKEN }}" \
             https://api.github.com/repos/shafi-hassan0/portfolio-api-tests/dispatches \
-            -d '{"event_type":"backend-changed"}'
+            -d "{\"event_type\":\"backend-changed\",\"client_payload\":{\"sha\":\"$SHA\"}}"
