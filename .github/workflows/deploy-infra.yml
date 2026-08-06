@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy Infra
 
 on:
   push:
@@ -34,5 +34,5 @@ jobs:
             ProxyCommand cloudflared access ssh --hostname %h --service-token-id $CF_ACCESS_CLIENT_ID --service-token-secret $CF_ACCESS_CLIENT_SECRET
           EOF
 
-      - name: Deploy frontend and backend
-        run: ssh deploy-host "cd ${{ secrets.DEPLOY_PATH }} && ./deploy.sh frontend && ./deploy.sh backend"
+      - name: Deploy infra
+        run: ssh deploy-host "cd ${{ secrets.DEPLOY_PATH }} && ./deploy.sh infra"

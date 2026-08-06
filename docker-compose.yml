@@ -11,7 +11,7 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ../portfolio-website-api
     container_name: portfolio-backend
     restart: unless-stopped
     environment:
@@ -26,7 +26,7 @@ services:
     networks:
       - portfolio-net
     volumes:
-      - ./backend/public/images:/app/public/images
+      - ../portfolio-website-api/public/images:/app/public/images
     # also no ports: — only nginx reaches it, over this network
 
   web:
@@ -34,8 +34,8 @@ services:
     container_name: portfolio-web
     restart: unless-stopped
     volumes:
-      - ./frontend/dist/frontend/browser:/usr/share/nginx/html:ro
-      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../portfolio-website-ui/dist/frontend/browser:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
     networks:

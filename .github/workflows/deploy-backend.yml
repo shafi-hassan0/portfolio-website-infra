@@ -1,39 +1,14 @@
-name: Seed Database
+name: Deploy Backend
 
 on:
-  # Runs after Deploy finishes, not on push directly — this guarantees the
-  # backend container has already been rebuilt with the new seed data before
-  # we reseed from it, instead of racing an independent push-triggered run.
-  workflow_run:
-    workflows: ["Deploy"]
-    types: [completed]
+  # Fired by portfolio-website-api's trigger-deploy.yml on every push to main.
+  repository_dispatch:
+    types: [backend-changed]
   workflow_dispatch:
 
 jobs:
-  check:
+  deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-    outputs:
-      should_seed: ${{ steps.diff.outputs.should_seed }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 2
-
-      - name: Check whether seed data changed
-        id: diff
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -q '^backend/src/seed/data/'; then
-            echo "should_seed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_seed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  seed:
-    runs-on: ubuntu-latest
-    needs: [check]
-    if: always() && (github.event_name == 'workflow_dispatch' || needs.check.outputs.should_seed == 'true')
     steps:
       - name: Install cloudflared
         run: |
@@ -60,5 +35,22 @@ jobs:
             ProxyCommand cloudflared access ssh --hostname %h --service-token-id $CF_ACCESS_CLIENT_ID --service-token-secret $CF_ACCESS_CLIENT_SECRET
           EOF
 
+      - name: Deploy backend
+        run: ssh deploy-host "cd ${{ secrets.DEPLOY_PATH }} && ./deploy.sh backend"
+
+      # Only meaningful for a repository_dispatch trigger, where the api repo
+      # already told us whether src/seed/data/** changed in that push.
       - name: Seed database
+        if: github.event.client_payload.should_seed == 'true'
         run: ssh deploy-host "cd ${{ secrets.DEPLOY_PATH }} && docker compose exec -T backend node dist/seed/seed.js"
+
+      # Threads the ORIGINAL portfolio-website-api commit sha through, so the
+      # test suite's status report lands on the right commit over there.
+      - name: Trigger API tests
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          curl -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.API_TESTS_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/shafi-hassan0/portfolio-website-api-tests/dispatches \
+            -d "{\"event_type\":\"backend-changed\",\"client_payload\":{\"sha\":\"${{ github.event.client_payload.sha }}\"}}"

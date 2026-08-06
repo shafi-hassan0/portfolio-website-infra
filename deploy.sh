@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+API_DIR="$ROOT/../portfolio-website-api"
+UI_DIR="$ROOT/../portfolio-website-ui"
+
 # Non-interactive SSH commands (e.g. from CI) don't source ~/.bashrc, so nvm's
 # node/npm never make it onto PATH there even though they do in a normal login shell.
 export PATH="/home/nixy/.nvm/versions/node/v24.19.0/bin:$PATH"
@@ -16,23 +19,25 @@ usage() {
   echo "  ./deploy.sh frontend"
   echo "  ./deploy.sh backend"
   echo "  ./deploy.sh backend seed"
+  echo "  ./deploy.sh infra"
   exit 1
 }
 
 case "$TARGET" in
-  frontend|backend) ;;
+  frontend|backend|infra) ;;
   *) usage ;;
 esac
 
-echo "=== Pulling latest ==="
+echo "=== Pulling latest (infra) ==="
 git pull
 
 case "$TARGET" in
   frontend)
+    echo "=== Pulling latest (ui) ==="
+    git -C "$UI_DIR" pull
+
     echo "=== Building frontend ==="
-    cd "$ROOT/frontend"
-    npm run build
-    cd "$ROOT"
+    (cd "$UI_DIR" && npm run build)
 
     echo "=== Restarting web container ==="
     docker compose restart web
@@ -41,6 +46,9 @@ case "$TARGET" in
     echo "Done. Frontend deployed."
     ;;
   backend)
+    echo "=== Pulling latest (api) ==="
+    git -C "$API_DIR" pull
+
     echo "=== Rebuilding and restarting backend container ==="
     docker compose up -d --build backend
 
@@ -51,6 +59,13 @@ case "$TARGET" in
 
     echo
     echo "Done. Backend deployed."
+    ;;
+  infra)
+    echo "=== Applying infra changes ==="
+    docker compose up -d
+
+    echo
+    echo "Done. Infra deployed."
     ;;
   *)
     usage

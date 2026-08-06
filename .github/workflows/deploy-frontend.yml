@@ -1,0 +1,42 @@
+name: Deploy Frontend
+
+on:
+  # Fired by portfolio-website-ui's trigger-deploy.yml on every push to main.
+  repository_dispatch:
+    types: [frontend-changed]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cloudflared
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Add deploy SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Configure SSH over Cloudflare Access
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          cat >> ~/.ssh/config <<EOF
+          Host deploy-host
+            HostName ${{ secrets.SSH_HOSTNAME }}
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+            ProxyCommand cloudflared access ssh --hostname %h --service-token-id $CF_ACCESS_CLIENT_ID --service-token-secret $CF_ACCESS_CLIENT_SECRET
+          EOF
+
+      - name: Deploy frontend
+        run: ssh deploy-host "cd ${{ secrets.DEPLOY_PATH }} && ./deploy.sh frontend"
+
+      # Future: once portfolio-website-ui has its own test suite, add a step
+      # here to dispatch it, mirroring "Trigger API tests" in deploy-backend.yml.
