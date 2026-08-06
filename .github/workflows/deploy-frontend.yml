@@ -38,5 +38,13 @@ jobs:
       - name: Deploy frontend
         run: ssh deploy-host "cd ${{ secrets.DEPLOY_PATH }} && ./deploy.sh frontend"
 
-      # Future: once portfolio-website-ui has its own test suite, add a step
-      # here to dispatch it, mirroring "Trigger API tests" in deploy-backend.yml.
+      # Threads the ORIGINAL portfolio-website-ui commit sha through, so the
+      # test suite's status report lands on the right commit over there.
+      - name: Trigger UI tests
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          curl -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.UI_TESTS_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/shafi-hassan0/portfolio-website-ui-tests/dispatches \
+            -d "{\"event_type\":\"frontend-changed\",\"client_payload\":{\"sha\":\"${{ github.event.client_payload.sha }}\"}}"
