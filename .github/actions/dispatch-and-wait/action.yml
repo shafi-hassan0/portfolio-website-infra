@@ -1,0 +1,91 @@
+name: Dispatch and wait
+description: >
+  Fires a repository_dispatch event at another repo, finds the workflow run
+  it triggers, waits for it to complete, and fails this step if that run
+  didn't succeed. Writes the outcome to the job summary either way.
+
+inputs:
+  token:
+    description: PAT with Contents:RW and Actions:Read on the target repo
+    required: true
+  repo:
+    description: Target repo as owner/name
+    required: true
+  workflow-file:
+    description: Workflow filename in the target repo, e.g. tests.yml
+    required: true
+  event-type:
+    description: repository_dispatch event_type to send
+    required: true
+  payload:
+    description: JSON string used as client_payload, e.g. '{"sha":"abc123"}'
+    required: true
+  summary-label:
+    description: Human-readable label for the job summary, e.g. "API Tests"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        WORKFLOW: ${{ inputs.workflow-file }}
+        EVENT_TYPE: ${{ inputs.event-type }}
+        PAYLOAD: ${{ inputs.payload }}
+        LABEL: ${{ inputs.summary-label }}
+      run: |
+        set -euo pipefail
+
+        DISPATCH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+        curl -sS -X POST \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $TOKEN" \
+          "https://api.github.com/repos/$REPO/dispatches" \
+          -d "{\"event_type\":\"$EVENT_TYPE\",\"client_payload\":$PAYLOAD}"
+
+        # repository_dispatch doesn't return a run id, so find it by polling
+        # for the newest matching run created after we fired the dispatch.
+        echo "Waiting for the $REPO run to appear..."
+        RUN_ID=""
+        for i in $(seq 1 12); do
+          sleep 5
+          RUN_ID=$(curl -sS -H "Authorization: Bearer $TOKEN" \
+            "https://api.github.com/repos/$REPO/actions/workflows/$WORKFLOW/runs?event=repository_dispatch&per_page=5" \
+            | jq -r --arg t "$DISPATCH_TIME" '[.workflow_runs[] | select(.created_at >= $t)] | sort_by(.created_at) | first | .id // empty')
+          if [ -n "$RUN_ID" ]; then
+            echo "Found run: $RUN_ID"
+            break
+          fi
+        done
+
+        if [ -z "$RUN_ID" ]; then
+          echo "::error::Could not find the triggered $REPO run within 60s"
+          exit 1
+        fi
+
+        RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
+        echo "Watching $RUN_URL"
+
+        CONCLUSION=""
+        for i in $(seq 1 60); do
+          RESPONSE=$(curl -sS -H "Authorization: Bearer $TOKEN" "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID")
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" = "completed" ]; then
+            CONCLUSION=$(echo "$RESPONSE" | jq -r '.conclusion')
+            break
+          fi
+          sleep 15
+        done
+
+        {
+          echo "### $LABEL result: ${CONCLUSION:-timed out}"
+          echo "[View run]($RUN_URL)"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        if [ "${CONCLUSION:-}" != "success" ]; then
+          echo "::error::$LABEL concluded: ${CONCLUSION:-timed out}"
+          exit 1
+        fi

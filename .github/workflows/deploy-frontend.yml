@@ -43,12 +43,18 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'repository_dispatch'
     steps:
+      - uses: actions/checkout@v7
+
       # Threads the ORIGINAL portfolio-website-ui commit sha through, so the
-      # test suite's status report lands on the right commit over there.
-      - name: Trigger UI tests
-        run: |
-          curl -sS -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.UI_TESTS_DISPATCH_TOKEN }}" \
-            https://api.github.com/repos/shafi-hassan0/portfolio-website-ui-tests/dispatches \
-            -d "{\"event_type\":\"frontend-changed\",\"client_payload\":{\"sha\":\"${{ github.event.client_payload.sha }}\"}}"
+      # test suite's status report lands on the right commit over there. This
+      # job's own result reflects whether the tests actually passed, not just
+      # whether the dispatch call succeeded.
+      - name: Trigger UI tests and wait for the result
+        uses: ./.github/actions/dispatch-and-wait
+        with:
+          token: ${{ secrets.UI_TESTS_DISPATCH_TOKEN }}
+          repo: shafi-hassan0/portfolio-website-ui-tests
+          workflow-file: tests.yml
+          event-type: frontend-changed
+          payload: '{"sha":"${{ github.event.client_payload.sha }}"}'
+          summary-label: UI Tests
