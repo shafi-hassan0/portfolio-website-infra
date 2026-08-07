@@ -9,6 +9,13 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Backend and frontend deploys both SSH into the same server and git-pull
+    # the same infra checkout as their first step; without this they can race
+    # and corrupt each other's git ref locks. Shared group name with
+    # deploy-frontend.yml serializes them instead of cancelling either one.
+    concurrency:
+      group: server-deploy
+      cancel-in-progress: false
     steps:
       - name: Install cloudflared
         run: |

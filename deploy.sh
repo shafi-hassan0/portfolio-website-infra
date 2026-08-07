@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+# Backstop against overlapping deploys (e.g. a manual run alongside a CI
+# trigger) racing on this repo's own git refs when both run `git pull` below.
+exec 200>"$ROOT/.deploy.lock"
+flock -w 300 200 || {
+  echo "Could not acquire deploy lock within 5 minutes" >&2
+  exit 1
+}
+
 API_DIR="$ROOT/../portfolio-website-api"
 UI_DIR="$ROOT/../portfolio-website-ui"
 
