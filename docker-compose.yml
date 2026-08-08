@@ -23,6 +23,7 @@ services:
       EMAILJS_TEMPLATE_ID: ${EMAILJS_TEMPLATE_ID}
       EMAILJS_PUBLIC_KEY: ${EMAILJS_PUBLIC_KEY}
       EMAILJS_PRIVATE_KEY: ${EMAILJS_PRIVATE_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     depends_on:
       - mongo
     networks:
