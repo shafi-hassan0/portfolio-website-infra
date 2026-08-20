@@ -70,7 +70,15 @@ case "$TARGET" in
     ;;
   infra)
     echo "=== Applying infra changes ==="
-    docker compose up -d
+    # Deliberately excludes cloudflared: this SSH session reaches the server
+    # THROUGH the tunnel that container maintains, so recreating it here would
+    # sever the very connection running this command mid-operation (exactly
+    # what happened before this comment was added — "Broken pipe", exit 255,
+    # with cloudflared left mid-recreate). A cloudflared-specific change (tunnel
+    # token rotation, image bump) needs a deliberate `docker compose up -d
+    # cloudflared` run from somewhere that can tolerate the tunnel dropping —
+    # console/local access, not a routine CI-triggered deploy.
+    docker compose up -d mongo backend web
 
     echo
     echo "Done. Infra deployed."
